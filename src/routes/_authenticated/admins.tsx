@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Shield, ShieldOff, Lock, Unlock, History, User } from "lucide-react";
+import { Shield, ShieldOff, Lock, Unlock, History, User, Plus } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   promoteToSuperAdmin,
@@ -12,11 +12,21 @@ import {
   enableUser,
   listAdmins,
   getAuditLogs,
+  createUser,
 } from "@/lib/admin.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +37,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/admins")({
   component: AdminsPage,
@@ -47,6 +65,7 @@ function AdminsPage() {
   const disableFn = useServerFn(disableUser);
   const enableFn = useServerFn(enableUser);
   const auditFn = useServerFn(getAuditLogs);
+  const createFn = useServerFn(createUser);
 
   const { data: admins = [], isLoading } = useQuery({
     queryKey: ["admins"],
@@ -62,6 +81,14 @@ function AdminsPage() {
 
   const [actionTarget, setActionTarget] = useState<any | null>(null);
   const [actionType, setActionType] = useState<"promote" | "demote" | "disable" | "enable" | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createFormData, setCreateFormData] = useState({
+    email: "",
+    password: "",
+    full_name: "",
+    username: "",
+    role: "lab_admin" as "super_admin" | "lab_admin",
+  });
 
   // Get count of active super admins
   const activeSuperAdminCount = (admins as any[]).filter(
@@ -112,6 +139,27 @@ function AdminsPage() {
       qc.invalidateQueries({ queryKey: ["audit-logs"] });
       setActionTarget(null);
       setActionType(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createNew = useMutation({
+    mutationFn: () =>
+      createFn({
+        data: createFormData,
+      }),
+    onSuccess: () => {
+      toast.success("User created successfully");
+      qc.invalidateQueries({ queryKey: ["admins"] });
+      qc.invalidateQueries({ queryKey: ["audit-logs"] });
+      setShowCreateDialog(false);
+      setCreateFormData({
+        email: "",
+        password: "",
+        full_name: "",
+        username: "",
+        role: "lab_admin",
+      });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -188,6 +236,15 @@ function AdminsPage() {
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
+          <div className="flex justify-end">
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Create User
+            </Button>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Lab Admins</CardTitle>
@@ -362,6 +419,103 @@ function AdminsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>
+              Create a new lab admin account. The user will receive their credentials and can log in immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="create-email">Email</Label>
+              <Input
+                id="create-email"
+                type="email"
+                placeholder="user@example.com"
+                value={createFormData.email}
+                onChange={(e) =>
+                  setCreateFormData({ ...createFormData, email: e.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-username">Username</Label>
+              <Input
+                id="create-username"
+                placeholder="john_doe"
+                value={createFormData.username}
+                onChange={(e) =>
+                  setCreateFormData({ ...createFormData, username: e.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-fullname">Full Name</Label>
+              <Input
+                id="create-fullname"
+                placeholder="John Doe"
+                value={createFormData.full_name}
+                onChange={(e) =>
+                  setCreateFormData({ ...createFormData, full_name: e.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-password">Password</Label>
+              <Input
+                id="create-password"
+                type="password"
+                placeholder="••••••••"
+                value={createFormData.password}
+                onChange={(e) =>
+                  setCreateFormData({ ...createFormData, password: e.target.value })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Must be at least 8 characters
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-role">Role</Label>
+              <Select
+                value={createFormData.role}
+                onValueChange={(value) =>
+                  setCreateFormData({
+                    ...createFormData,
+                    role: value as "super_admin" | "lab_admin",
+                  })
+                }
+              >
+                <SelectTrigger id="create-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lab_admin">Lab Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateDialog(false)}
+              disabled={createNew.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createNew.mutate()}
+              disabled={createNew.isPending}
+            >
+              {createNew.isPending ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

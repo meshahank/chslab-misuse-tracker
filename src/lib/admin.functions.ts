@@ -234,6 +234,62 @@ export const listAdmins = createServerFn({ method: "GET" })
     }));
   });
 
+export const createUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      email: z.string().email(),
+      password: z.string().min(8, "Password must be at least 8 characters"),
+      full_name: z.string().min(1, "Full name is required"),
+      username: z.string().min(1, "Username is required"),
+      role: z.enum(["super_admin", "lab_admin"]),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context);
+
+    // Create auth user
+    const { data: authData, error: authError } = await context.supabase.auth.admin.createUser({
+      email: data.email,
+      password: data.password,
+      user_metadata: {
+        full_name: data.full_name,
+        username: data.username,
+      },
+    });
+
+    if (authError) throw new Error(`Failed to create user: ${authError.message}`);
+    if (!authData.user) throw new Error("Failed to create user");
+
+    // Create profile
+    const { error: profileError } = await context.supabase.from("profiles").insert({
+      id: authData.user.id,
+      username: data.username,
+      full_name: data.full_name,
+      role: data.role,
+      status: "active",
+    });
+
+    if (profileError) throw new Error(`Failed to create profile: ${profileError.message}`);
+
+    // Record audit log
+    await recordAuditLog(
+      context.supabase,
+      context.userId,
+      authData.user.id,
+      "promote",
+      "lab_admin",
+      data.role,
+      `User created with ${data.role} role`
+    );
+
+    return {
+      ok: true,
+      userId: authData.user.id,
+      email: authData.user.email,
+    };
+  });
+
 export const getAuditLogs = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
