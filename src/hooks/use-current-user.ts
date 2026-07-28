@@ -5,9 +5,9 @@ import type { User } from "@supabase/supabase-js";
 
 export type CurrentUser = {
   user: User;
-  profile: { id: string; username: string; full_name: string } | null;
-  roles: string[];
+  profile: { id: string; username: string; full_name: string; role: string; status: string } | null;
   isSuperAdmin: boolean;
+  isActive: boolean;
 };
 
 export function useCurrentUser() {
@@ -28,16 +28,38 @@ export function useCurrentUser() {
     enabled: !!session,
     queryFn: async (): Promise<CurrentUser | null> => {
       if (!session) return null;
-      const [{ data: profile }, { data: roles }] = await Promise.all([
-        supabase.from("profiles" as any).select("*").eq("id", session.id).maybeSingle(),
-        supabase.from("user_roles" as any).select("role").eq("user_id", session.id),
-      ]);
-      const roleList = (roles as any[] | null)?.map((r) => r.role) ?? [];
+
+      // Get or create profile
+      let { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.id)
+        .maybeSingle();
+
+      // If profile doesn't exist, create it with lab_admin role and active status
+      if (!profile && !error) {
+        const { data: newProfile, error: createError } = await supabase
+          .from("profiles")
+          .insert({
+            id: session.id,
+            username: session.user_metadata?.username || session.email?.split("@")[0] || "user",
+            full_name: session.user_metadata?.full_name || "Lab User",
+            role: "lab_admin",
+            status: "active",
+          })
+          .select()
+          .single();
+
+        if (!createError) {
+          profile = newProfile;
+        }
+      }
+
       return {
         user: session,
         profile: profile as any,
-        roles: roleList,
-        isSuperAdmin: roleList.includes("super_admin"),
+        isSuperAdmin: profile?.role === "super_admin",
+        isActive: profile?.status === "active",
       };
     },
   });

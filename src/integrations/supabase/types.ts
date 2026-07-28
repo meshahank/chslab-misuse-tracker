@@ -69,6 +69,8 @@ export type Database = {
           id: string
           updated_at: string
           username: string
+          role: Database["public"]["Enums"]["user_role"]
+          status: Database["public"]["Enums"]["user_status"]
         }
         Insert: {
           created_at?: string
@@ -76,6 +78,8 @@ export type Database = {
           id: string
           updated_at?: string
           username: string
+          role?: Database["public"]["Enums"]["user_role"]
+          status?: Database["public"]["Enums"]["user_status"]
         }
         Update: {
           created_at?: string
@@ -83,6 +87,41 @@ export type Database = {
           id?: string
           updated_at?: string
           username?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          status?: Database["public"]["Enums"]["user_status"]
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          id: string
+          actor_id: string
+          target_user_id: string
+          action: string
+          old_value: string | null
+          new_value: string | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          actor_id: string
+          target_user_id: string
+          action: string
+          old_value?: string | null
+          new_value?: string | null
+          reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          actor_id?: string
+          target_user_id?: string
+          action?: string
+          old_value?: string | null
+          new_value?: string | null
+          reason?: string | null
+          created_at?: string
         }
         Relationships: []
       }
@@ -122,6 +161,8 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "lab_admin"
+      user_role: "super_admin" | "lab_admin"
+      user_status: "active" | "disabled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -250,6 +291,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "lab_admin"],
+      user_role: ["super_admin", "lab_admin"],
+      user_status: ["active", "disabled"],
     },
   },
 } as const
